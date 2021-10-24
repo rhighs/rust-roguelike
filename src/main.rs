@@ -37,7 +37,7 @@ async fn main() {
     );
 
     let mut square1 = shapes::Square::new(
-        Some(&gVec2::new(400.0, 10.0)),
+        Some(&gVec2::new(10.0, 10.0)),
         Some(100.0),
         Some(100.0)
     );
@@ -57,7 +57,7 @@ async fn main() {
 
     loop {
         clear_background(BLACK);
-        world.colliding_entities(0);
+        world.check_world_collisions();
         world.render();
         world.update();
         next_frame().await

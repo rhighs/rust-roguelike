@@ -53,6 +53,13 @@ impl<'a> World <'a> {
         }
     }
 
+    pub fn check_world_collisions(&mut self) {
+        let len = self.physics_components.len();
+        for i in 0..len {
+            self.colliding_entities(i);
+        }
+    }
+
     pub fn colliding_entities(&mut self, id: usize) -> Vec<Physics> {
         let len = self.physics_components.len();
         let mut data = self.physics_components.clone();
@@ -67,7 +74,6 @@ impl<'a> World <'a> {
 
             if subject.check_collision(&target) {
                 collides.push(*target);
-                self.physics_components[i].as_mut().unwrap().stop_mov();
                 subject.stop_mov();
             }
         }
