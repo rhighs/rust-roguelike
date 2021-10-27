@@ -8,6 +8,7 @@ use macroquad::input::mouse_position;
 mod shapes;
 mod motion;
 mod world;
+mod input;
 pub mod components;
 
 fn mouse_pos() -> gVec2 {
@@ -55,7 +56,14 @@ async fn main() {
         )
     );
 
+    unsafe {
+        input::INPUT_EVENTS.on(input::EventId::OnSpace, || println!("ciao"));
+    }
+
     loop {
+        unsafe {
+            input::INPUT_EVENTS.handle();
+        }
         clear_background(BLACK);
         world.check_world_collisions();
         world.render();
