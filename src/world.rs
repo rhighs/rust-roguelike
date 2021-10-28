@@ -6,7 +6,7 @@ pub struct World<'a>{
     name_components: Vec<Option<Name>>,
     shape_components: Vec<Option<Shape<'a>>>,
     physics_components: Vec<Option<Physics>>,
-    input_handle: Events<'a>,
+    input_handle: Events,
     n_entities: usize
 }
 
@@ -51,11 +51,11 @@ impl<'a> World<'a>{
 
         self.input_handle.handle();
 
+        //update shape screen pos according to pos given by the physics component
         for i in 0 .. len {
             let physics_ref = self.physics_components[i].as_mut().unwrap();
             physics_ref.update();
-            let shape_ref = self.shape_components[i].as_mut().unwrap();
-            shape_ref.0.set_pos(&physics_ref.position);
+            self.shape_components[i].as_mut().unwrap().0.set_pos(&physics_ref.position);
         }
     }
 
@@ -66,17 +66,18 @@ impl<'a> World<'a>{
         }
     }
 
-    pub fn add_player(&'a mut self, health: Option<Health>,
+    pub fn add_player(&'static mut self, health: Option<Health>,
                       name: Option<Name>, shape: Option<Shape<'a>>,
                       physics: Option<Physics>) {
         self.new_entity(health, name, shape, physics);
         let last = self.physics_components.last_mut().unwrap().as_mut().unwrap();
 
         let on_space = move || {
+            println!("Should be working");
             last.step();
         };
 
-        self.input_handle.on(EventId::OnSpace, on_space);
+        self.input_handle.on(EventId::OnSpace, Box::new(on_space));
     }
 
     pub fn colliding_entities(&mut self, id: usize) -> Vec<Physics> {

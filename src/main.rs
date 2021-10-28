@@ -20,28 +20,19 @@ fn mouse_pos() -> gVec2 {
 async fn main() {
     println!("{}", screen_height());
 
-    static mut square: shapes::Square = shapes::Square::new(
+    let mut square: shapes::Square = shapes::Square::new(
         Some(&gVec2::new(10.0, 10.0)),
         Some(100.0),
         Some(100.0)
         );
 
-    static mut square1: shapes::Square = shapes::Square::new(
+    let mut square1: shapes::Square = shapes::Square::new(
         Some(&gVec2::new(10.0, 10.0)),
         Some(100.0),
         Some(100.0)
         );
 
-    static mut world: world::World = world::World::new();
-
-    world.new_entity(
-        Some(components::Health(30)),
-        Some(components::Name("Cringe")),
-        Some(components::Shape(&mut square)),
-        Some(components::Physics::new(Some(gVec2::new(100.0, 100.0)),
-        Some(gVec2::new(0.1, 0.0)),
-        Some(gVec2::new(100.0, 100.0)), Some(0.1)))
-    );
+    let mut world: world::World = world::World::new();
 
     world.new_entity(
         Some(components::Health(30)),
