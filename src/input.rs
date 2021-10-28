@@ -8,15 +8,15 @@ pub enum EventId {
     OnDown,
 }
 
-pub struct Events<'a> {
-    on_space: Vec<&'a dyn FnMut() -> ()>,
-    on_left: Vec<&'a dyn FnMut() -> ()>,
-    on_right: Vec<&'a dyn FnMut() -> ()>,
-    on_up: Vec<&'a dyn FnMut() -> ()>,
-    on_down: Vec<&'a dyn FnMut() -> ()>
+pub struct Events {
+    on_space: Vec<Box<dyn FnMut() -> ()>>,
+    on_left: Vec<Box<dyn FnMut() -> ()>>,
+    on_right: Vec<Box<dyn FnMut() -> ()>>,
+    on_up: Vec<Box<dyn FnMut() -> ()>>,
+    on_down: Vec<Box<dyn FnMut() -> ()>>
 }
 
-impl<'a> Events <'a> {
+impl Events {
     pub fn new() -> Self {
         Self {
             on_space: Vec::new(),
@@ -27,7 +27,7 @@ impl<'a> Events <'a> {
         }
     }
 
-    pub fn on(&mut self, id: EventId, task: &'a dyn FnMut() -> ()) {
+    pub fn on(&mut self, id: EventId, task: Box<dyn FnMut() -> ()>) {
         match id {
             EventId::OnSpace    => self.on_space.push(task),
             EventId::OnLeft     => self.on_left.push(task),
@@ -38,26 +38,21 @@ impl<'a> Events <'a> {
         }
     }
 
-    pub fn dispatch(&self, id: EventId) {
-        let mut selected: Option<&Vec<& dyn FnMut() -> ()> = None;
+    pub fn dispatch(&mut self, id: EventId) {
+        let selected = match id {
+            EventId::OnSpace    => &mut self.on_space,
+            EventId::OnLeft     => &mut self.on_left,
+            EventId::OnRight    => &mut self.on_right,
+            EventId::OnUp       => &mut self.on_up,
+            EventId::OnDown     => &mut self.on_down
+        };
 
-        match id {
-            EventId::OnSpace    => selected = Some(&self.on_space),
-            EventId::OnLeft     => selected = Some(&self.on_left),
-            EventId::OnRight    => selected = Some(&self.on_right),
-            EventId::OnUp       => selected = Some(&self.on_up),
-            EventId::OnDown     => selected = Some(&self.on_down),
-            _                   => ()
-        }
-
-        if !selected.is_none() {
-            for sfn in selected.unwrap() {
-                sfn();
-            }
+        for sfn in selected {
+            sfn();
         }
     }
 
-    pub fn handle(&self) {
+    pub fn handle(&mut self) {
         let pressed = get_last_key_pressed()
             .unwrap_or(KeyCode::Unknown);
 

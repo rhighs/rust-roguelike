@@ -4,7 +4,7 @@ use glam::Vec2;
 
 pub struct Health(pub i32);
 pub struct Name(pub &'static str);
-pub struct Shape<'a>(pub &'a dyn Shape_t);
+pub struct Shape<'a>(pub &'a mut dyn Shape_t);
 
 #[derive(Clone, Copy)]
 pub struct Physics {
