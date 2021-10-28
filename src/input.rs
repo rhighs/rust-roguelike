@@ -8,16 +8,26 @@ pub enum EventId {
     OnDown,
 }
 
-pub struct Events {
-    on_space: Vec<fn()>,
-    on_left: Vec<fn()>,
-    on_right: Vec<fn()>,
-    on_up: Vec<fn()>,
-    on_down: Vec<fn()>
+pub struct Events<'a> {
+    on_space: Vec<&'a dyn FnMut() -> ()>,
+    on_left: Vec<&'a dyn FnMut() -> ()>,
+    on_right: Vec<&'a dyn FnMut() -> ()>,
+    on_up: Vec<&'a dyn FnMut() -> ()>,
+    on_down: Vec<&'a dyn FnMut() -> ()>
 }
 
-impl Events {
-    pub fn on(&mut self, id: EventId, task: fn()) {
+impl<'a> Events <'a> {
+    pub fn new() -> Self {
+        Self {
+            on_space: Vec::new(),
+            on_left: Vec::new(),
+            on_right: Vec::new(),
+            on_up: Vec::new(),
+            on_down: Vec::new()
+        }
+    }
+
+    pub fn on(&mut self, id: EventId, task: &'a dyn FnMut() -> ()) {
         match id {
             EventId::OnSpace    => self.on_space.push(task),
             EventId::OnLeft     => self.on_left.push(task),
@@ -29,7 +39,8 @@ impl Events {
     }
 
     pub fn dispatch(&self, id: EventId) {
-        let mut selected: Option<&Vec<fn()>> = None;
+        let mut selected: Option<&Vec<& dyn FnMut() -> ()> = None;
+
         match id {
             EventId::OnSpace    => selected = Some(&self.on_space),
             EventId::OnLeft     => selected = Some(&self.on_left),
@@ -39,8 +50,7 @@ impl Events {
             _                   => ()
         }
 
-
-        if selected != None {
+        if !selected.is_none() {
             for sfn in selected.unwrap() {
                 sfn();
             }
@@ -62,10 +72,3 @@ impl Events {
     }
 }
 
-pub static mut INPUT_EVENTS: Events = Events {
-    on_space: Vec::new(),
-    on_left: Vec::new(),
-    on_right: Vec::new(),
-    on_up: Vec::new(),
-    on_down: Vec::new()
-};

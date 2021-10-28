@@ -1,26 +1,30 @@
-use itertools::izip;
 pub use crate::components::{ Health, Name, Shape, Physics };
+pub use crate::input::{ Events, EventId };
 
-pub struct World <'a> {
+pub struct World<'a>{
     health_components: Vec<Option<Health>>,
     name_components: Vec<Option<Name>>,
     shape_components: Vec<Option<Shape<'a>>>,
     physics_components: Vec<Option<Physics>>,
-    n_entities: u32
+    input_handle: Events<'a>,
+    n_entities: usize
 }
 
-impl<'a> World <'a> {
+impl<'a> World<'a>{
     pub fn new() -> Self {
         Self {
             health_components: Vec::new(),
             shape_components: Vec::new(),
             name_components: Vec::new(),
             physics_components: Vec::new(),
+            input_handle: Events::new(),
             n_entities: 0
         }
     }
 
-    pub fn new_entity(&mut self, health: Option<Health>, name: Option<Name>, shape: Option<Shape<'a>>, physics: Option<Physics>) -> u32 {
+    pub fn new_entity(&mut self, health: Option<Health>,
+                      name: Option<Name>, shape: Option<Shape<'a>>,
+                      physics: Option<Physics>) -> usize {
         self.n_entities += 1;
         self.health_components.push(health);
         self.name_components.push(name);
@@ -45,6 +49,8 @@ impl<'a> World <'a> {
     pub fn update(&mut self) {
         let len = self.physics_components.len();
 
+        self.input_handle.handle();
+
         for i in 0 .. len {
             let physics_ref = self.physics_components[i].as_mut().unwrap();
             physics_ref.update();
@@ -58,6 +64,19 @@ impl<'a> World <'a> {
         for i in 0..len {
             self.colliding_entities(i);
         }
+    }
+
+    pub fn add_player(&'a mut self, health: Option<Health>,
+                      name: Option<Name>, shape: Option<Shape<'a>>,
+                      physics: Option<Physics>) {
+        self.new_entity(health, name, shape, physics);
+        let last = self.physics_components.last_mut().unwrap().as_mut().unwrap();
+
+        let on_space = move || {
+            last.step();
+        };
+
+        self.input_handle.on(EventId::OnSpace, on_space);
     }
 
     pub fn colliding_entities(&mut self, id: usize) -> Vec<Physics> {
