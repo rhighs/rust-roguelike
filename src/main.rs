@@ -19,14 +19,20 @@ fn mouse_pos() -> gVec2 {
 #[macroquad::main("BasicShapes")]
 async fn main() {
     println!("{}", screen_height());
-    let mut world = world::World::new();
 
-
-    let mut square = shapes::Square::new(
+    static mut square: shapes::Square = shapes::Square::new(
         Some(&gVec2::new(10.0, 10.0)),
         Some(100.0),
         Some(100.0)
-    );
+        );
+
+    static mut square1: shapes::Square = shapes::Square::new(
+        Some(&gVec2::new(10.0, 10.0)),
+        Some(100.0),
+        Some(100.0)
+        );
+
+    static mut world: world::World = world::World::new();
 
     world.new_entity(
         Some(components::Health(30)),
@@ -35,12 +41,6 @@ async fn main() {
         Some(components::Physics::new(Some(gVec2::new(100.0, 100.0)),
         Some(gVec2::new(0.1, 0.0)),
         Some(gVec2::new(100.0, 100.0)), Some(0.1)))
-    );
-
-    let mut square1 = shapes::Square::new(
-        Some(&gVec2::new(10.0, 10.0)),
-        Some(100.0),
-        Some(100.0)
     );
 
     world.new_entity(
@@ -56,14 +56,7 @@ async fn main() {
         )
     );
 
-    unsafe {
-        input::INPUT_EVENTS.on(input::EventId::OnSpace, || println!("ciao"));
-    }
-
     loop {
-        unsafe {
-            input::INPUT_EVENTS.handle();
-        }
         clear_background(BLACK);
         world.check_world_collisions();
         world.render();
