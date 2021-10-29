@@ -8,15 +8,15 @@ pub enum EventId {
     OnDown,
 }
 
-pub struct Events {
-    on_space: Vec<Box<dyn FnMut() -> ()>>,
-    on_left: Vec<Box<dyn FnMut() -> ()>>,
-    on_right: Vec<Box<dyn FnMut() -> ()>>,
-    on_up: Vec<Box<dyn FnMut() -> ()>>,
-    on_down: Vec<Box<dyn FnMut() -> ()>>
+pub struct Events<'a>{
+    on_space: Vec<Box<dyn FnMut() -> () + 'a>>,
+    on_left: Vec<Box<dyn FnMut() -> () + 'a>>,
+    on_right: Vec<Box<dyn FnMut() -> () + 'a>>,
+    on_up: Vec<Box<dyn FnMut() -> () + 'a>>,
+    on_down: Vec<Box<dyn FnMut() -> () + 'a>>
 }
 
-impl Events {
+impl<'a> Events <'a> {
     pub fn new() -> Self {
         Self {
             on_space: Vec::new(),
@@ -27,7 +27,7 @@ impl Events {
         }
     }
 
-    pub fn on(&mut self, id: EventId, task: Box<dyn FnMut() -> ()>) {
+    pub fn on(&mut self, id: EventId, task: Box<dyn FnMut() -> () + 'a>) {
         match id {
             EventId::OnSpace    => self.on_space.push(task),
             EventId::OnLeft     => self.on_left.push(task),

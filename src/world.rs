@@ -6,7 +6,7 @@ pub struct World<'a>{
     name_components: Vec<Option<Name>>,
     shape_components: Vec<Option<Shape<'a>>>,
     physics_components: Vec<Option<Physics>>,
-    input_handle: Events,
+    input_handle: Events<'a>,
     n_entities: usize
 }
 
@@ -46,19 +46,6 @@ impl<'a> World<'a>{
         erased
     }
 
-    pub fn update(&mut self) {
-        let len = self.physics_components.len();
-
-        self.input_handle.handle();
-
-        //update shape screen pos according to pos given by the physics component
-        for i in 0 .. len {
-            let physics_ref = self.physics_components[i].as_mut().unwrap();
-            physics_ref.update();
-            self.shape_components[i].as_mut().unwrap().0.set_pos(&physics_ref.position);
-        }
-    }
-
     pub fn check_world_collisions(&mut self) {
         let len = self.physics_components.len();
         for i in 0..len {
@@ -66,18 +53,16 @@ impl<'a> World<'a>{
         }
     }
 
-    pub fn add_player(&'static mut self, health: Option<Health>,
+    pub fn add_player(&mut self, health: Option<Health>,
                       name: Option<Name>, shape: Option<Shape<'a>>,
                       physics: Option<Physics>) {
         self.new_entity(health, name, shape, physics);
-        let last = self.physics_components.last_mut().unwrap().as_mut().unwrap();
 
-        let on_space = move || {
-            println!("Should be working");
-            last.step();
-        };
+        let os: Box<dyn FnMut() -> () + 'static> = Box::new(move || {
+            physics.unwrap().step();
+        });
 
-        self.input_handle.on(EventId::OnSpace, Box::new(on_space));
+        self.input_handle.on(EventId::OnSpace,  Box::new(os));
     }
 
     pub fn colliding_entities(&mut self, id: usize) -> Vec<Physics> {
@@ -99,6 +84,19 @@ impl<'a> World<'a>{
         }
 
         collides
+    }
+
+    pub fn update(&mut self) {
+        let len = self.physics_components.len();
+
+        self.input_handle.handle();
+
+        //update shape screen pos according to pos given by the physics component
+        for i in 0 .. len {
+            let physics_ref = self.physics_components[i].as_mut().unwrap();
+            physics_ref.update();
+            self.shape_components[i].as_mut().unwrap().0.set_pos(&physics_ref.position);
+        }
     }
 
     pub fn render(&self) {
