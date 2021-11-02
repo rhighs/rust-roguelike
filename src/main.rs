@@ -34,13 +34,13 @@ async fn main() {
 
     let mut world: world::World = world::World::new();
 
-    world.new_entity(
+    world.add_player(
         Some(components::Health(30)),
         Some(components::Name("Cringe")),
         Some(components::Shape(&mut square1)),
         Some(components::Physics::new(
             Some(gVec2::new(400.0, 100.0)),
-            Some(gVec2::new(-0.1, 0.0)),
+            Some(gVec2::new(-0.3, 0.0)),
             Some(gVec2::new(100.0, 100.0)),
             Some(0.1)
             )
@@ -53,13 +53,12 @@ async fn main() {
         Some(components::Shape(&mut square)),
         Some(components::Physics::new(
             Some(gVec2::new(400.0, 100.0)),
-            Some(gVec2::new(-0.1, 0.0)),
+            Some(gVec2::new(-0.3, 0.0)),
             Some(gVec2::new(100.0, 100.0)),
             Some(0.1)
             )
         )
     );
-
     loop {
         clear_background(BLACK);
         world.check_world_collisions();

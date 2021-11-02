@@ -2,7 +2,9 @@ use crate::shapes::Shape as Shape_t;
 
 use glam::Vec2;
 
+#[derive(Clone, Copy)]
 pub struct Health(pub i32);
+#[derive(Clone, Copy)]
 pub struct Name(pub &'static str);
 pub struct Shape<'a>(pub &'a mut dyn Shape_t);
 

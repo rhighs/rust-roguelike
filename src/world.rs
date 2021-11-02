@@ -58,11 +58,15 @@ impl<'a> World<'a>{
                       physics: Option<Physics>) {
         self.new_entity(health, name, shape, physics);
 
-        let os: Box<dyn FnMut() -> () + 'static> = Box::new(move || {
-            physics.unwrap().step();
+        /*
+         *
+         * just make a fucking stackoverflow post
+         *
+        let os: Box<dyn FnMut() -> () + 'static> = Box::new(|| {
+            self.physics_components[self.n_entities].unwrap().step();
         });
-
-        self.input_handle.on(EventId::OnSpace,  Box::new(os));
+        self.input_handle.on(EventId::OnSpace, os);
+        */
     }
 
     pub fn colliding_entities(&mut self, id: usize) -> Vec<Physics> {
@@ -87,12 +91,11 @@ impl<'a> World<'a>{
     }
 
     pub fn update(&mut self) {
-        let len = self.physics_components.len();
-
         self.input_handle.handle();
 
         //update shape screen pos according to pos given by the physics component
-        for i in 0 .. len {
+        //somewhy if there are multiple entities, the physics compoenent wont update its pos
+        for i in 0 .. self.n_entities {
             let physics_ref = self.physics_components[i].as_mut().unwrap();
             physics_ref.update();
             self.shape_components[i].as_mut().unwrap().0.set_pos(&physics_ref.position);
