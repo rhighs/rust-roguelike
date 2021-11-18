@@ -45,6 +45,13 @@ const COLOR_LIGHT_GROUND: Color = Color {
     b: 50,
 };
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum PlayerAction {
+    TookTurn, 
+    DidntTakeTurn,
+    Exit
+}
+
 //===============================================================
 
 struct Tcod {
@@ -127,6 +134,25 @@ fn move_by(id: usize, dx: i32, dy: i32, game: &Game, objects: &mut [Object]) {
     let (x, y) = objects[id].pos();
     if !is_blocked(x + dx, y + dy, &game.map, objects) {
         objects[id].set_pos(x + dx, y + dy);
+    }
+}
+
+fn player_move_or_attack(dx: i32, dy: i32, game: &Game, objects: &mut [Object]) {
+    let x = objects[PLAYER_IDX].x + dx;
+    let y = objects[PLAYER_IDX].y + dy;
+
+    let target_id = objects.iter().position(|object| object.pos() == (x, y));
+
+    match target_id {
+        Some(target_id) => {
+            println!(
+                "The {} laughs at your puny efforts to attack him!",
+                objects[target_id].name
+            );
+        }
+        None => {
+            move_by(PLAYER_IDX, dx, dy, &game, objects);
+        }
     }
 }
 
@@ -279,27 +305,44 @@ fn render_all(tcod: &mut Tcod, game: &mut Game, objects: &[Object], fov_recomput
         );
 }
  
-fn handle_keys(tcod: &mut Tcod, game: &Game, objects: &mut Vec<Object>) -> bool {
+fn handle_keys(tcod: &mut Tcod, game: &Game, objects: &mut Vec<Object>) -> PlayerAction {
     let key = tcod.root.wait_for_keypress(true);
-    match key {
-        Key {
+    let player_alive = objects[PLAYER_IDX].alive;
+    match (key, key.text(), player_alive){
+        (
+            Key {
             code: Enter,
             alt: true,
             ..
-        } => {
+            },
+            _,
+            _
+        ) => {
             // Alt+Enter: toggle fullscreen
             let fullscreen = tcod.root.is_fullscreen();
             tcod.root.set_fullscreen(!fullscreen);
+            PlayerAction::DidntTakeTurn
         },
-        Key { code: Escape, .. } => return true, // exit game
-        Key { code: Up, .. } => move_by(PLAYER_IDX, 0, -1, game, objects),
-        Key { code: Down, .. } => move_by(PLAYER_IDX, 0, 1, game, objects),
-        Key { code: Left, .. } => move_by(PLAYER_IDX, -1, 0, game, objects),
-        Key { code: Right, .. } => move_by(PLAYER_IDX, 1, 0, game, objects),
+        (Key { code: Escape, .. }, _, _) => return PlayerAction::Exit, // exit game
+        (Key { code: Up, .. }, _, true) => {
+            player_move_or_attack(0, -1, game, objects);
+            PlayerAction::TookTurn
+        },
+        (Key { code: Down, .. }, _, true) => {
+            player_move_or_attack(0, 1, game, objects);
+            PlayerAction::TookTurn
+        },
+        (Key { code: Left, .. }, _, true) => {
+            player_move_or_attack(-1, 0, game, objects);
+            PlayerAction::TookTurn
+        },
+        (Key { code: Right, .. }, _, true) => {
+            player_move_or_attack(1, 0, game, objects);
+            PlayerAction::TookTurn
+        },
 
-        _ => {}
+        _ => PlayerAction::DidntTakeTurn
     }
-    false
 }
 
 fn place_objects(room: Rect, map: &Map, objects: &mut Vec<Object>) {
@@ -374,8 +417,17 @@ fn main() {
         tcod.root.flush();
 
         previous_player_position = objects[PLAYER_IDX].pos();
-        if handle_keys(&mut tcod, &game, &mut objects) {
-            return;
+        let player_action = handle_keys(&mut tcod, &game, &mut objects);
+        if player_action == PlayerAction::Exit {
+            break;
+        }
+
+        if objects[PLAYER_IDX].alive && player_action != PlayerAction::DidntTakeTurn {
+            for object in &objects {
+                if (object as *const _) != (&objects[PLAYER_IDX] as *const _) {
+                    println!("The {} growls!", object.name);
+                }
+            }
         }
     }
 }
