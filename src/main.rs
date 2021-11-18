@@ -7,27 +7,26 @@ use tcod::colors;
 
 use rand::Rng;
 
-// actual size of the window
+//===============================================================
+
+const LIMIT_FPS: i32 = 60;
+
 const SCREEN_WIDTH: i32 = 80;
 const SCREEN_HEIGHT: i32 = 50;
 
-// size of the map
 const MAP_WIDTH: i32 = 80;
 const MAP_HEIGHT: i32 = 45;
 
-//parameters for dungeon generator
 const ROOM_MAX_SIZE: i32 = 10;
 const ROOM_MIN_SIZE: i32 = 6;
 const MAX_ROOMS: i32 = 30;
 const MAX_ROOM_MONSTERS: i32 = 4;
 
-const PLAYER_IDX: usize = 0;
-
-const FOV_ALGO: FovAlgorithm = FovAlgorithm::Basic; // default FOV algorithm
-const FOV_LIGHT_WALLS: bool = true; // light walls or not
+const FOV_ALGO: FovAlgorithm = FovAlgorithm::Basic;
+const FOV_LIGHT_WALLS: bool = true;
 const TORCH_RADIUS: i32 = 10;
 
-const LIMIT_FPS: i32 = 60; // 20 frames-per-second maximum
+const PLAYER_IDX: usize = 0;
 
 const COLOR_DARK_WALL: Color = Color { r: 0, g: 0, b: 100 };
 const COLOR_LIGHT_WALL: Color = Color {
@@ -45,6 +44,15 @@ const COLOR_LIGHT_GROUND: Color = Color {
     g: 180,
     b: 50,
 };
+
+//===============================================================
+
+struct Tcod {
+    root: Root,
+    con: Offscreen,
+    fov: FovMap
+}
+
 #[derive(Clone, Copy, Debug)]
 struct Tile {
     blocked: bool,
@@ -74,6 +82,74 @@ type Map = Vec<Vec<Tile>>;
 
 struct Game {
     map: Map
+}
+
+#[derive(Debug)]
+struct Object {
+    x: i32,
+    y: i32, 
+    char: char,
+    color: Color
+}
+
+impl Object {
+    pub fn new(x: i32, y: i32, char: char, color: Color) -> Self {
+        Self { x, y, char, color }
+    }
+
+    pub fn move_by(&mut self, x: i32, y: i32, game: &Game) {
+        let new_x = self.x + x;
+        let new_y = self.y + y;
+        if !game.map[new_x as usize][new_y as usize].blocked {
+            self.set_pos(new_x, new_y);
+        }
+    }
+
+    pub fn draw(&self, con: &mut dyn Console) {
+        con.set_default_foreground(self.color);
+        con.put_char(self.x, self.y, self.char, BackgroundFlag::None);
+    }
+
+    pub fn pos(&self) -> (i32, i32) {
+        (self.x, self.y)
+    }
+
+    pub fn set_pos(&mut self, x: i32, y: i32) {
+        self.x = x;
+        self.y = y;
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Rect {
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32
+}
+
+impl Rect {
+    pub fn new(x: i32, y: i32, w: i32, h: i32) -> Self {
+        Self {
+            x1: x,
+            y1: y,
+            x2: x + w,
+            y2: y + h,
+        }
+    }
+
+    pub fn center(&self) -> (i32, i32) {
+        let center_x = (self.x1 + self.x2) / 2;
+        let center_y = (self.y1 + self.y2) / 2;
+        (center_x, center_y)
+    }
+
+    pub fn intersects_with(&self, other: &Rect) -> bool {
+        (self.x1 <= other.x2)
+            && (self.x2 >= other.x1)
+            && (self.y1 <= other.y2)
+            && (self.y2 >= other.y1)
+    }
 }
 
 fn create_h_tunnel(x1: i32, x2: i32, y: i32, map: &mut Map) {
@@ -121,8 +197,7 @@ fn make_map(objects: &mut Vec<Object>) -> Map {
             place_objects(room, objects);
             if rooms.is_empty() {
                 let player = &mut objects[PLAYER_IDX];
-                player.x = new_x;
-                player.y = new_y;
+                player.set_pos(new_x, new_y)
             } else {
 
                 let (prev_x, prev_y) = rooms[rooms.len() - 1].center();
@@ -146,7 +221,7 @@ fn make_map(objects: &mut Vec<Object>) -> Map {
 fn render_all(tcod: &mut Tcod, game: &mut Game, objects: &[Object], fov_recompute: bool) {
     if fov_recompute {
         // recompute FOV if needed (the player moved or something)
-        let player = &objects[0];
+        let player = &objects[PLAYER_IDX];
         tcod.fov
             .compute_fov(player.x, player.y, TORCH_RADIUS, FOV_LIGHT_WALLS, FOV_ALGO);
     }
@@ -192,70 +267,6 @@ fn render_all(tcod: &mut Tcod, game: &mut Game, objects: &[Object], fov_recomput
         1.0,
         1.0,
         );
-}
-
-#[derive(Debug)]
-struct Object {
-    x: i32,
-    y: i32, 
-    char: char,
-    color: Color
-}
-
-impl Object {
-    pub fn new(x: i32, y: i32, char: char, color: Color) -> Self {
-        Self { x, y, char, color }
-    }
-
-    pub fn move_by(&mut self, x: i32, y: i32, game: &Game) {
-        if !game.map[(self.x + x) as usize][(self.y + y) as usize].blocked {
-            self.x += x;
-            self.y += y;
-        }
-    }
-
-    pub fn draw(&self, con: &mut dyn Console) {
-        con.set_default_foreground(self.color);
-        con.put_char(self.x, self.y, self.char, BackgroundFlag::None);
-    }
-}
-
-struct Tcod {
-    root: Root,
-    con: Offscreen,
-    fov: FovMap
-}
-
-#[derive(Clone, Copy, Debug)]
-struct Rect {
-    x1: i32,
-    y1: i32,
-    x2: i32,
-    y2: i32
-}
-
-impl Rect {
-    pub fn new(x: i32, y: i32, w: i32, h: i32) -> Self {
-        Self {
-            x1: x,
-            y1: y,
-            x2: x + w,
-            y2: y + h,
-        }
-    }
-
-    pub fn center(&self) -> (i32, i32) {
-        let center_x = (self.x1 + self.x2) / 2;
-        let center_y = (self.y1 + self.y2) / 2;
-        (center_x, center_y)
-    }
-
-    pub fn intersects_with(&self, other: &Rect) -> bool {
-        (self.x1 <= other.x2)
-            && (self.x2 >= other.x1)
-            && (self.y1 <= other.y2)
-            && (self.y2 >= other.y1)
-    }
 }
  
 fn handle_keys(tcod: &mut Tcod, game: &Game, player: &mut Object) -> bool {
@@ -332,12 +343,13 @@ fn main() {
 
     while !tcod.root.window_closed() {
         tcod.con.clear();
-        let fov_recompute = previous_player_position != (objects[0].x, objects[0].y);
+
+        let fov_recompute = previous_player_position != objects[PLAYER_IDX].pos();
         render_all(&mut tcod, &mut game, &objects, fov_recompute);
 
-        tcod.root.flush();
+        let player: &mut Object = &mut objects[PLAYER_IDX];
 
-        let player = &mut objects[PLAYER_IDX];
+        tcod.root.flush();
 
         previous_player_position = (player.x, player.y);
         if handle_keys(&mut tcod, &game, player) {
