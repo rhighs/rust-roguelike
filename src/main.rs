@@ -89,19 +89,22 @@ struct Object {
     x: i32,
     y: i32, 
     char: char,
-    color: Color
+    color: Color,
+    name: String,
+    blocks: bool,
+    alive: bool
 }
 
 impl Object {
-    pub fn new(x: i32, y: i32, char: char, color: Color) -> Self {
-        Self { x, y, char, color }
-    }
-
-    pub fn move_by(&mut self, x: i32, y: i32, game: &Game) {
-        let new_x = self.x + x;
-        let new_y = self.y + y;
-        if !game.map[new_x as usize][new_y as usize].blocked {
-            self.set_pos(new_x, new_y);
+    pub fn new(x: i32, y: i32, char: char, color: Color, name: &str, blocks: bool) -> Self {
+        Self {
+            x,
+            y,
+            char, 
+            color,
+            name: name.into(),
+            blocks, 
+            alive: false
         }
     }
 
@@ -117,6 +120,13 @@ impl Object {
     pub fn set_pos(&mut self, x: i32, y: i32) {
         self.x = x;
         self.y = y;
+    }
+}
+
+fn move_by(id: usize, dx: i32, dy: i32, game: &Game, objects: &mut [Object]) {
+    let (x, y) = objects[id].pos();
+    if !is_blocked(x + dx, y + dy, &game.map, objects) {
+        objects[id].set_pos(x + dx, y + dy);
     }
 }
 
@@ -194,7 +204,7 @@ fn make_map(objects: &mut Vec<Object>) -> Map {
 
         if !failed {
             create_room(room, &mut map);
-            place_objects(room, objects);
+            place_objects(room, &map, objects);
             if rooms.is_empty() {
                 let player = &mut objects[PLAYER_IDX];
                 player.set_pos(new_x, new_y)
@@ -269,7 +279,7 @@ fn render_all(tcod: &mut Tcod, game: &mut Game, objects: &[Object], fov_recomput
         );
 }
  
-fn handle_keys(tcod: &mut Tcod, game: &Game, player: &mut Object) -> bool {
+fn handle_keys(tcod: &mut Tcod, game: &Game, objects: &mut Vec<Object>) -> bool {
     let key = tcod.root.wait_for_keypress(true);
     match key {
         Key {
@@ -282,30 +292,42 @@ fn handle_keys(tcod: &mut Tcod, game: &Game, player: &mut Object) -> bool {
             tcod.root.set_fullscreen(!fullscreen);
         },
         Key { code: Escape, .. } => return true, // exit game
-        Key { code: Up, .. } => player.move_by(0, -1, game),
-        Key { code: Down, .. } => player.move_by(0, 1, game),
-        Key { code: Left, .. } => player.move_by(-1, 0, game),
-        Key { code: Right, .. } => player.move_by(1, 0, game),
+        Key { code: Up, .. } => move_by(PLAYER_IDX, 0, -1, game, objects),
+        Key { code: Down, .. } => move_by(PLAYER_IDX, 0, 1, game, objects),
+        Key { code: Left, .. } => move_by(PLAYER_IDX, -1, 0, game, objects),
+        Key { code: Right, .. } => move_by(PLAYER_IDX, 1, 0, game, objects),
 
         _ => {}
     }
     false
 }
 
-fn place_objects(room: Rect, objects: &mut Vec<Object>) {
+fn place_objects(room: Rect, map: &Map, objects: &mut Vec<Object>) {
     let num_monsters = rand::thread_rng().gen_range(0..MAX_ROOM_MONSTERS + 1);
     for _ in 0..num_monsters {
         let x = rand::thread_rng().gen_range((room.x1 + 1)..room.x2);
         let y = rand::thread_rng().gen_range((room.y1 + 1)..room.y2);
 
-        let monster = if rand::random::<f32>() < 0.8 {
-            Object::new(x, y, 'o', colors::DESATURATED_GREEN)
-        } else {
-            Object::new(x, y, 'T', colors::DARKER_GREEN)
-        };
-
-        objects.push(monster);
+        if !is_blocked(x, y, map, objects) {
+            let mut monster = if rand::random::<f32>() < 0.8 {
+                Object::new(x, y, 'o', colors::DESATURATED_GREEN, "Orc", true)
+            } else {
+                Object::new(x, y, 'T', colors::DARKER_GREEN, "Troll", true)
+            };
+            monster.alive = true;
+            objects.push(monster);
+        }
     }
+}
+
+fn is_blocked(x: i32, y: i32, map: &Map, objects: &[Object]) -> bool {
+    if map[x as usize][y as usize].blocked {
+        return true;
+    }
+
+    objects
+        .iter()
+        .any(|object| object.blocks && object.pos() == (x, y))
 }
 
 fn main() {
@@ -324,8 +346,10 @@ fn main() {
         fov: FovMap::new(MAP_WIDTH, MAP_HEIGHT)
     };
 
-    let player = Object::new(25, 23, '@', WHITE);
+    let mut player = Object::new(25, 23, '@', WHITE, "Skumonti", true);
+    player.alive = true;
     let mut objects = Vec::from([player]);
+
     let mut game = Game { map: make_map(&mut objects) };
 
     for y in 0..MAP_HEIGHT {
@@ -347,12 +371,10 @@ fn main() {
         let fov_recompute = previous_player_position != objects[PLAYER_IDX].pos();
         render_all(&mut tcod, &mut game, &objects, fov_recompute);
 
-        let player: &mut Object = &mut objects[PLAYER_IDX];
-
         tcod.root.flush();
 
-        previous_player_position = (player.x, player.y);
-        if handle_keys(&mut tcod, &game, player) {
+        previous_player_position = objects[PLAYER_IDX].pos();
+        if handle_keys(&mut tcod, &game, &mut objects) {
             return;
         }
     }
