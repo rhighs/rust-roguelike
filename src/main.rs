@@ -54,6 +54,19 @@ enum PlayerAction {
 
 //===============================================================
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Fighter {
+    max_hp: i32,
+    hp: i32,
+    defense: i32,
+    power: i32
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum Ai {
+    Basic
+}
+
 struct Tcod {
     root: Root,
     con: Offscreen,
@@ -99,7 +112,9 @@ struct Object {
     color: Color,
     name: String,
     blocks: bool,
-    alive: bool
+    alive: bool,
+    fighter: Option<Fighter>,
+    ai: Option<Ai>
 }
 
 impl Object {
@@ -111,7 +126,9 @@ impl Object {
             color,
             name: name.into(),
             blocks, 
-            alive: false
+            alive: false,
+            fighter: None,
+            ai: None
         }
     }
 
@@ -128,12 +145,41 @@ impl Object {
         self.x = x;
         self.y = y;
     }
+
+    pub fn distance_to(&self, other: &Object) -> f32 {
+        let dx = other.x - self.x;
+        let dy = other.y - self.y;
+        ((dx.pow(2) + dy.pow(2)) as f32).sqrt()
+    }
 }
 
-fn move_by(id: usize, dx: i32, dy: i32, game: &Game, objects: &mut [Object]) {
+fn move_by(id: usize, dx: i32, dy: i32, map: &Map, objects: &mut [Object]) {
     let (x, y) = objects[id].pos();
-    if !is_blocked(x + dx, y + dy, &game.map, objects) {
+    if !is_blocked(x + dx, y + dy, map, objects) {
         objects[id].set_pos(x + dx, y + dy);
+    }
+}
+
+fn move_towards(id: usize, target_x: i32, target_y: i32, map: &Map, objects: &mut [Object]) {
+    let dx = target_x - objects[id].x;
+    let dy = target_y - objects[id].y;
+    let distance = ((dx.pow(2) + dy.pow(2)) as f32).sqrt();
+    let dx = (dx as f32 / distance) as i32;
+    let dy = (dy as f32 / distance) as i32;
+    move_by(id, dx, dy, map, objects);
+}
+
+fn ai_take_turn(monster_id: usize, tcod: &Tcod, game: &Game, objects: &mut [Object]) {
+    let (monster_x, monster_y) = objects[monster_id].pos();
+    if tcod.fov.is_in_fov(monster_x, monster_y) {
+        let (player_x, player_y) = objects[PLAYER_IDX].pos();
+        move_towards(monster_id, player_x, player_y, &game.map, objects);
+    } else if objects[PLAYER_IDX].fighter.map_or(false, |f| f.hp > 0) {
+        let monster = &objects[monster_id];
+        println!(
+            "The attack of the {} bounces off your shiny metal armor!",
+            monster.name
+        );
     }
 }
 
@@ -151,7 +197,7 @@ fn player_move_or_attack(dx: i32, dy: i32, game: &Game, objects: &mut [Object]) 
             );
         }
         None => {
-            move_by(PLAYER_IDX, dx, dy, &game, objects);
+            move_by(PLAYER_IDX, dx, dy, &game.map, objects);
         }
     }
 }
@@ -353,9 +399,25 @@ fn place_objects(room: Rect, map: &Map, objects: &mut Vec<Object>) {
 
         if !is_blocked(x, y, map, objects) {
             let mut monster = if rand::random::<f32>() < 0.8 {
-                Object::new(x, y, 'o', colors::DESATURATED_GREEN, "Orc", true)
+                let mut orc = Object::new(x, y, 'o', colors::DESATURATED_GREEN, "Orc", true);
+                orc.fighter = Some(Fighter {
+                    max_hp: 10,
+                    hp: 10,
+                    defense: 0,
+                    power: 3
+                });
+                orc.ai = Some(Ai::Basic);
+                orc
             } else {
-                Object::new(x, y, 'T', colors::DARKER_GREEN, "Troll", true)
+                let mut troll = Object::new(x, y, 'T', colors::DARKER_GREEN, "Troll", true);
+                troll.fighter = Some(Fighter {
+                    max_hp: 16,
+                    hp: 16,
+                    defense: 1,
+                    power: 4
+                });
+                troll.ai = Some(Ai::Basic);
+                troll
             };
             monster.alive = true;
             objects.push(monster);
@@ -391,6 +453,12 @@ fn main() {
 
     let mut player = Object::new(25, 23, '@', WHITE, "Skumonti", true);
     player.alive = true;
+    player.fighter = Some(Fighter {
+        max_hp: 30,
+        hp: 30,
+        defense: 2,
+        power: 5
+    });
     let mut objects = Vec::from([player]);
 
     let mut game = Game { map: make_map(&mut objects) };
@@ -423,9 +491,9 @@ fn main() {
         }
 
         if objects[PLAYER_IDX].alive && player_action != PlayerAction::DidntTakeTurn {
-            for object in &objects {
-                if (object as *const _) != (&objects[PLAYER_IDX] as *const _) {
-                    println!("The {} growls!", object.name);
+            for id in 0..objects.len() {
+                if objects[id].ai.is_some() {
+                    ai_take_turn(id, &tcod, &game, &mut objects);
                 }
             }
         }
