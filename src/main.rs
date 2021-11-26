@@ -1,9 +1,10 @@
 use tcod::colors::*;
 use tcod::console::*;
-use tcod::input::Key;
 use tcod::input::KeyCode::*;
 use tcod::colors;
 use tcod::map::{Map as FovMap};
+
+use tcod::input::{self, Event, Key, Mouse};
 
 use rand::Rng;
 
@@ -45,7 +46,9 @@ struct Tcod {
     root: Root,
     con: Offscreen,
     panel: Offscreen,
-    fov: FovMap
+    fov: FovMap,
+    key: Option<Key>,
+    mouse: Option<Mouse>
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -218,8 +221,7 @@ fn move_towards(id: usize, target_x: i32, target_y: i32, map: &Map, objects: &mu
     move_by(id, dx, dy, map, objects);
 }
 
-fn ai_take_turn(monster_id: usize, tcod: &Tcod, game: &mut Game, objects: &mut [Object]) {
-    let (monster_x, monster_y) = objects[monster_id].pos();
+fn ai_take_turn(monster_id: usize, game: &mut Game, objects: &mut [Object]) {
     if objects[monster_id].distance_to(&objects[PLAYER_IDX]) >= 2.0 {
         let (player_x, player_y) = objects[PLAYER_IDX].pos();
         move_towards(monster_id, player_x, player_y, &game.map, objects);
@@ -413,6 +415,17 @@ fn render_all(tcod: &mut Tcod, game: &mut Game, objects: &[Object], fov_recomput
         1.0,
         );
 
+    tcod.panel.set_default_foreground(LIGHT_GREY);
+    if tcod.mouse.is_some() {
+        tcod.panel.print_ex(
+            1,
+            0,
+            BackgroundFlag::None,
+            TextAlignment::Left,
+            get_names_under_mouse(tcod.mouse.unwrap(), objects, &tcod.fov)
+            );
+    }
+
     tcod.panel.set_default_background(BLACK);
     tcod.panel.clear();
 
@@ -453,16 +466,30 @@ fn render_all(tcod: &mut Tcod, game: &mut Game, objects: &[Object], fov_recomput
     );
 }
 
+fn get_names_under_mouse(mouse: Mouse, objects: &[Object], fov_map: &FovMap) -> String {
+    let (x, y) = (mouse.cx as i32, mouse.cy as i32);
+
+    let names = objects
+        .iter()
+        .filter(|obj| obj.pos() == (x, y) && fov_map.is_in_fov(obj.x, obj.y))
+        .map(|obj| obj.name.clone())
+        .collect::<Vec<_>>();
+
+    names.join(", ")
+}
+
 fn handle_keys(tcod: &mut Tcod, game: &mut Game, objects: &mut Vec<Object>) -> PlayerAction {
-    let key = tcod.root.wait_for_keypress(true);
     let player_alive = objects[PLAYER_IDX].alive;
-    match (key, key.text(), player_alive){
+
+    let key_text = "";
+
+    match (tcod.key, key_text, player_alive){
         (
-            Key {
-            code: Enter,
-            alt: true,
-            ..
-            },
+            Some(Key {
+                code: Enter,
+                alt: true,
+                ..
+            }),
             _,
             _
         ) => {
@@ -471,20 +498,20 @@ fn handle_keys(tcod: &mut Tcod, game: &mut Game, objects: &mut Vec<Object>) -> P
             tcod.root.set_fullscreen(!fullscreen);
             PlayerAction::DidntTakeTurn
         },
-        (Key { code: Escape, .. }, _, _) => return PlayerAction::Exit, // exit game
-        (Key { code: Up, .. }, _, true) => {
+        (Some(Key { code: Escape, .. }), _, _) => return PlayerAction::Exit, // exit game
+        (Some(Key { code: Up, .. }), _, true) => {
             player_move_or_attack(0, -1, game, objects);
             PlayerAction::TookTurn
         },
-        (Key { code: Down, .. }, _, true) => {
+        (Some(Key { code: Down, .. }), _, true) => {
             player_move_or_attack(0, 1, game, objects);
             PlayerAction::TookTurn
         },
-        (Key { code: Left, .. }, _, true) => {
+        (Some(Key { code: Left, .. }), _, true) => {
             player_move_or_attack(-1, 0, game, objects);
             PlayerAction::TookTurn
         },
-        (Key { code: Right, .. }, _, true) => {
+        (Some(Key { code: Right, .. }), _, true) => {
             player_move_or_attack(1, 0, game, objects);
             PlayerAction::TookTurn
         },
@@ -582,7 +609,9 @@ fn main() {
         root,
         con,
         panel,
-        fov: FovMap::new(MAP_WIDTH, MAP_HEIGHT)
+        fov: FovMap::new(MAP_WIDTH, MAP_HEIGHT),
+        key: None,
+        mouse: None
     };
 
     let mut player = Object::new(25, 23, '@', WHITE, "Skumonti", true);
@@ -622,6 +651,12 @@ fn main() {
     while !tcod.root.window_closed() {
         tcod.con.clear();
 
+        match input::check_for_event(input::MOUSE | input::KEY_PRESS) {
+            Some((_, Event::Mouse(m))) => tcod.mouse = Some(m),
+            Some((_, Event::Key(k))) => tcod.key = Some(k),
+            _ => tcod.key = None
+        }
+
         let fov_recompute = previous_player_position != objects[PLAYER_IDX].pos();
         render_all(&mut tcod, &mut game, &objects, fov_recompute);
 
@@ -636,7 +671,7 @@ fn main() {
         if objects[PLAYER_IDX].alive && player_action != PlayerAction::DidntTakeTurn {
             for id in 0..objects.len() {
                 if objects[id].ai.is_some() {
-                    ai_take_turn(id, &tcod, &mut game, &mut objects);
+                    ai_take_turn(id, &mut game, &mut objects);
                 }
             }
         }
